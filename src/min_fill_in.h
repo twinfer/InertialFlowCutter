@@ -536,7 +536,7 @@ namespace cch_order{
 		const int arc_count = tail.preimage_count();
 		auto input_node_id = identity_permutation(node_count);
 		auto input_arc_id = identity_permutation(arc_count);
-		return compute_nested_dissection_expanded_graph_order(tail, head, input_node_id, input_arc_id, arc_weight, compute_cut);
+		return compute_nested_dissection_expanded_graph_order(std::move(tail), std::move(head), std::move(input_node_id), std::move(input_arc_id), std::move(arc_weight), compute_cut);
 	}
 
 	template<class ComputeSeparator, class ComputePartOrder>
@@ -600,7 +600,7 @@ namespace cch_order{
 				compute_separator
 			);
 		};
-		return compute_nested_dissection_graph_order(tail, head, input_node_id, arc_weight, compute_separator, compute_graph_part_order);
+		return compute_nested_dissection_graph_order(std::move(tail), std::move(head), std::move(input_node_id), std::move(arc_weight), compute_separator, compute_graph_part_order);
 	}
 
 	template<class ComputeCoreGraphOrder>
@@ -846,8 +846,8 @@ namespace cch_order{
 		#else
 
 		auto order = reorder_nodes_in_preorder_and_compute_unconnected_graph_order_if_component_is_non_trivial(
-			tail, head, 
-			input_node_id, arc_weight,
+			std::move(tail), std::move(head), 
+			std::move(input_node_id), std::move(arc_weight),
 			compute_core_graph_order, node_in_core
 		);
 
@@ -1055,7 +1055,7 @@ namespace cch_order{
 		};
 
 		auto order = reorder_nodes_in_preorder_and_compute_unconnected_graph_order_if_component_is_non_trivial(
-			tail, head, input_node_id, arc_weight, 
+			std::move(tail), std::move(head), std::move(input_node_id), std::move(arc_weight), 
 			orderer1, [](int){return false;}
 		);
 
@@ -1070,7 +1070,8 @@ namespace cch_order{
 		ArrayIDFunc<int> arc_weight, 
 		const ComputeSeparator&compute_separator
 	){
-		return compute_cch_graph_order(std::move(tail), std::move(head), identity_permutation(tail.image_count()), std::move(arc_weight), compute_separator);
+		const int node_count = tail.image_count();
+		return compute_cch_graph_order(std::move(tail), std::move(head), identity_permutation(node_count), std::move(arc_weight), compute_separator);
 	}
 
 	class ComputeConstantSeparator{
@@ -1098,7 +1099,7 @@ namespace cch_order{
 		auto input_node_id = identity_permutation(node_count);
 
 		return compute_nested_dissection_graph_order(
-			tail, head, input_node_id, arc_weight, 
+			std::move(tail), std::move(head), std::move(input_node_id), std::move(arc_weight), 
 			ComputeConstantSeparator(std::move(top_level_separator)), 
 			[&](
 				ArrayIDIDFunc a_tail, ArrayIDIDFunc a_head,
