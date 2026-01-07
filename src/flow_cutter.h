@@ -1252,8 +1252,79 @@ namespace flow_cutter{
 		}
 
 		template <typename GeoPos>
-		std::vector<SourceTargetPair>select_source_target_pairs(int node_count, const GeoPos&, int cutter_count, int seed){
-			return select_source_target_pairs(node_count, cutter_count, seed);
+		std::vector<SourceTargetPair>select_source_target_pairs(int node_count, const GeoPos& geo_pos, int cutter_count, int seed){
+			// Upgrade: Use geometry to pick distant pairs (Inertial Flow heuristic)
+			// This is O(N) and memory-safe, unlike flow_cutter_accelerated.
+			std::vector<SourceTargetPair> pairs;
+			if (node_count < 2) return pairs;
+
+			// Optimization: Single pass over coordinates to find extremes for ALL projections.
+			// This adapts the angular projection logic from flow_cutter_accelerated::compute_inertial_flow_orders
+			// but avoids the O(N) memory overhead of sorting.
+			struct Extremes {
+				int min_node = 0;
+				int max_node = 0;
+				double min_val = std::numeric_limits<double>::max();
+				double max_val = std::numeric_limits<double>::lowest();
+				double cos_phi;
+				double sin_phi;
+			};
+			std::vector<Extremes> ex(cutter_count);
+
+			const double pi = 3.141592653589793238463;
+			// Precompute angles (matching flow_cutter_accelerated logic)
+			for(int k=0; k<cutter_count; ++k) {
+				double phi = k * pi / cutter_count;
+				ex[k].cos_phi = std::cos(phi);
+				ex[k].sin_phi = std::sin(phi);
+			}
+
+			// Initialize extremes with first node
+			auto p0 = geo_pos(0);
+			for(int k=0; k<cutter_count; ++k) {
+				// Projection: lat * cos + lon * sin (matches accelerated's polarToEuclidean logic)
+				double val = p0.lat * ex[k].cos_phi + p0.lon * ex[k].sin_phi;
+				ex[k].min_node = 0;
+				ex[k].max_node = 0;
+				ex[k].min_val = val;
+				ex[k].max_val = val;
+			}
+
+			for (int i = 1; i < node_count; ++i) {
+				auto p = geo_pos(i);
+				
+				for(int k=0; k<cutter_count; ++k) {
+					double val = p.lat * ex[k].cos_phi + p.lon * ex[k].sin_phi;
+					if (val < ex[k].min_val) { ex[k].min_val = val; ex[k].min_node = i; }
+					if (val > ex[k].max_val) { ex[k].max_val = val; ex[k].max_node = i; }
+				}
+			}
+
+			// Add pairs
+			for(int k=0; k<cutter_count; ++k) {
+				if (ex[k].min_node != ex[k].max_node) {
+					// Avoid duplicates
+					bool duplicate = false;
+					for(const auto& p : pairs) {
+						if ((p.source == ex[k].min_node && p.target == ex[k].max_node) ||
+							(p.source == ex[k].max_node && p.target == ex[k].min_node)) {
+							duplicate = true; 
+							break;
+						}
+					}
+					if (!duplicate) {
+						pairs.push_back({ex[k].min_node, ex[k].max_node});
+					}
+				}
+			}
+
+			// Fill remaining slots with random pairs if needed
+			if ((int)pairs.size() < cutter_count) {
+				auto random_pairs = select_source_target_pairs(node_count, cutter_count - (int)pairs.size(), seed);
+				pairs.insert(pairs.end(), random_pairs.begin(), random_pairs.end());
+			}
+
+			return pairs;
 		}
 
 		std::vector<SourceTargetPair>select_source_target_pairs(int node_count, int cutter_count, int seed){
@@ -1284,4 +1355,3 @@ namespace flow_cutter{
 }
 
 #endif
-
