@@ -297,10 +297,12 @@ namespace cch_order{
 
 
 		tbb::task_group tg;
-		if (big.size() == 1 && small.size() < 200000) {
-			small.push_back(big.front());
-			big.clear();
-		}
+		// Optimization disabled to prevent stack overflow during deep recursion.
+		// Moving the single big task to 'small' forces execution on the current stack frame.
+		// if (big.size() == 1 && small.size() < 200000) {
+		// 	small.push_back(big.front());
+		// 	big.clear();
+		// }
 		//std::sort(big.begin(), big.end(), [](const auto& a, const auto& b) { return a.node_count() > b.node_count(); });
 		for (const SubProblem sp : big) {
 			tg.run(std::bind(on_new_component, sp));
