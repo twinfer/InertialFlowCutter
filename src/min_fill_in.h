@@ -28,7 +28,10 @@
 
 
 namespace cch_order{
-	static constexpr int TASK_SPAWN_CUTOFF = 800;
+	// Increased from 800 to prevent OOM during nested dissection on planet-scale graphs.
+	// Higher value → more components in 'small' → sequential processing → memory freed between iterations
+	// Trade-off: Less parallelism, but prevents memory explosion from deep recursion
+	static constexpr int TASK_SPAWN_CUTOFF = 5000;
 
 
 	inline
@@ -297,13 +300,11 @@ namespace cch_order{
 
 
 		tbb::task_group tg;
-		// Optimization disabled to prevent stack overflow during deep recursion.
-		// Moving the single big task to 'small' forces execution on the current stack frame.
-		// if (big.size() == 1 && small.size() < 200000) {
-		// 	small.push_back(big.front());
-		// 	big.clear();
-		// }
-		//std::sort(big.begin(), big.end(), [](const auto& a, const auto& b) { return a.node_count() > b.node_count(); });
+		if (big.size() == 1 && small.size() < 10000) {
+			small.push_back(big.front());
+			big.clear();
+		}
+		std::sort(big.begin(), big.end(), [](const auto& a, const auto& b) { return a.node_count() > b.node_count(); });
 		for (const SubProblem sp : big) {
 			tg.run(std::bind(on_new_component, sp));
 		}
